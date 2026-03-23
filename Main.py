@@ -1,16 +1,35 @@
+from pynput import keyboard
+import threading
+import time
+from Detector import Detector
 from Listener import Listener
 
-keys=[]
+keys = []
+running = True
 
 def addKey(key):
     keys.append(key)
 
-listener = Listener(on_press=addKey)
+def onRelease(key):
+    global running
+    if key == keyboard.Key.esc:
+        running = False
+
+def analyse_loop():
+    while running:
+        time.sleep(3)
+        detector.analyse(keys.copy())
+        keys.clear()
+
+detector = Detector()
+listener = Listener(on_press=addKey, on_release=onRelease)
 listener.listen()
 
-input()
+t = threading.Thread(target=analyse_loop, daemon=True)
+t.start()
+
+while running:
+    time.sleep(0.1)
 
 listener.stop()
-print(keys)
-
-
+print("stopped")
