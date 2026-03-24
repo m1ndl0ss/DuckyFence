@@ -3,12 +3,13 @@ import threading
 import time
 from Detector import Detector
 from Listener import Listener
+import time
 
 keys = []
 running = True
 
 def addKey(key):
-    keys.append(key)
+    keys.append((key, time.time()))
 
 def onRelease(key):
     global running
