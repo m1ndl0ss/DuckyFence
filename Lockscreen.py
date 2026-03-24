@@ -1,6 +1,6 @@
 import ctypes
 from ctypes import wintypes
-
+#only works when run as admin... think of fix for .exe
 class Lockscreen:
     def __init__(self):
         self.BlockInput = ctypes.windll.user32.BlockInput
