@@ -12,7 +12,7 @@ def addKey(key):
 
 def onRelease(key):
     global running
-    if key == keyboard.Key.esc:
+    if key == keyboard.Key.ctrl_r:
         running = False
 
 def analyse_loop():
