@@ -1,6 +1,5 @@
 from pynput import keyboard
 import threading
-import time
 from Detector import Detector
 from Listener import Listener
 import time
