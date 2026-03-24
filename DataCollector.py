@@ -4,6 +4,8 @@ import os
 class DataCollector:
     def __init__(self):
         self.fieldnames = ['key_count', 'avg_gap', 'variance', 'label']
+        desktop = os.path.join(os.path.expanduser("~"), "Desktop", "output.csv")
+        self.filepath = desktop
         if not os.path.exists('output.csv'):
             with open('output.csv', 'a', newline='') as file:
                 writer = csv.DictWriter(file, fieldnames=self.fieldnames)
