@@ -15,6 +15,7 @@ def onRelease(key):
     if key == keyboard.Key.ctrl_r:
         running = False
 
+
 def analyse_loop():
     while running:
         time.sleep(3)
