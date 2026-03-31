@@ -1,14 +1,12 @@
 from Lockscreen import Lockscreen
 import numpy as np
 import statistics
-from DataCollector import DataCollector
 from Fullscreen import Fullscreen
 import joblib
 import sys
 import os
 
 MIN_KEYS = 5
-LABEL = 1  # 0 = human, 1 = malicious — change before building data collection exe
 
 
 def _resource_path(filename):
@@ -22,10 +20,8 @@ class Detector:
         self.keys = []
         self.keysWithGaps = []
         self.Lockscreen = Lockscreen()
-        self.DataCollector = DataCollector()
         self.Fullscreen = Fullscreen()
         self.blocked = False
-        self._last_window_range = (None, None)
 
         model_path = _resource_path("model.pkl")
         if os.path.exists(model_path):
@@ -54,12 +50,6 @@ class Detector:
                 self.Lockscreen.block()
                 if trigger_event is not None:
                     trigger_event.set()
-
-            # Save to CSV only when window actually changed
-            window_range = (self.keys[0][1], self.keys[-1][1])
-            if window_range != self._last_window_range:
-                self._last_window_range = window_range
-                self.DataCollector.save(key_count, avg_gap, var, label=LABEL)
 
     def _predict(self, key_count, avg_gap, var):
         if self.model is not None:
