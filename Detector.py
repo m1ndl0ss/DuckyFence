@@ -23,7 +23,7 @@ class Detector:
         self.Fullscreen = Fullscreen()
         self.blocked = False
 
-        model_path = _resource_path("model.pkl")
+        model_path = _resource_path("Data/model.pkl")
         if os.path.exists(model_path):
             self.model = joblib.load(model_path)
             print("[Detector] ML model loaded")

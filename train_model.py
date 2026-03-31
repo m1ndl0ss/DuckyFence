@@ -5,8 +5,8 @@ from sklearn.metrics import classification_report, confusion_matrix
 import joblib
 import os
 
-CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "training_data.csv")
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "model.pkl")
+CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data/training_data.csv")
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data/model.pkl")
 MIN_KEYS = 5
 
 df = pd.read_csv(CSV)

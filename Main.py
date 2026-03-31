@@ -70,7 +70,7 @@ def check_trigger():
 
 # ── tray icon ─────────────────────────────────────────────────
 def _make_tray_image():
-    return Image.open(_resource_path("mk-logo.png")).convert("RGBA").resize((64, 64), Image.LANCZOS)
+    return Image.open(_resource_path("Data/mk-logo.png")).convert("RGBA").resize((64, 64), Image.LANCZOS)
 
 def _on_tray_exit(icon, item):
     global running

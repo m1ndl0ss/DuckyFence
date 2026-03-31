@@ -14,7 +14,7 @@ class DataCollector:
         else:
             base = os.path.dirname(os.path.abspath(__file__))
 
-        self.filepath = os.path.join(base, "output.csv")
+        self.filepath = os.path.join(base, "Data/output.csv")
 
         if not os.path.exists(self.filepath):
             with open(self.filepath, 'a', newline='') as f:
