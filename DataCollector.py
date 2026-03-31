@@ -11,7 +11,7 @@ class DataCollector:
                 writer = csv.DictWriter(file, fieldnames=self.fieldnames)
                 writer.writeheader()
 
-    def save(self, key_count, avg_gap, variance, label=0):
+    def save(self, key_count, avg_gap, variance, label=1):
         if key_count == 0:
             return
         with open('output.csv', 'a', newline='') as file:
