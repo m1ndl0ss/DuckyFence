@@ -2,13 +2,14 @@ from Lockscreen import Lockscreen
 import numpy as np
 import statistics
 from DataCollector import DataCollector
-
+from Fullscreen import Fullscreen
 class Detector:
     def __init__(self):
         self.keys = []
         self.keysWithGaps =[]
         self.Lockscreen = Lockscreen()
         self.DataCollector = DataCollector()
+        self.Fullscreen = Fullscreen()
         self.blocked = False
 
     def analyse(self, keys):
@@ -21,11 +22,13 @@ class Detector:
             gap= self.keys[i][1] - self.keys[i-1][1]
             self.keysWithGaps.append((self.keys[i-1][0], gap))
 
-        # TODO remove ts for data collection
-        #print("Analysing", len(self.keysWithGaps), "keys:", self.keysWithGaps)
-        # if len(self.keysWithGaps)>=10:
-        #     self.blocked=True
-        #     self.Lockscreen.block()
+
+        print("Analysing", len(self.keysWithGaps), "keys:", self.keysWithGaps)
+        if len(self.keysWithGaps)>=10:
+            self.blocked=True
+            self.Lockscreen.block()
+            self.Fullscreen.trigger()
+
 
 
         #output to csv
