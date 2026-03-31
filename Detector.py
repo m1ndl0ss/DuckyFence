@@ -3,44 +3,75 @@ import numpy as np
 import statistics
 from DataCollector import DataCollector
 from Fullscreen import Fullscreen
+import joblib
+import sys
+import os
+
+MIN_KEYS = 5
+LABEL = 1  # 0 = human, 1 = malicious — change before building data collection exe
+
+
+def _resource_path(filename):
+    """Works both in dev and when bundled by PyInstaller."""
+    base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, filename)
+
+
 class Detector:
     def __init__(self):
         self.keys = []
-        self.keysWithGaps =[]
+        self.keysWithGaps = []
         self.Lockscreen = Lockscreen()
         self.DataCollector = DataCollector()
         self.Fullscreen = Fullscreen()
         self.blocked = False
+        self._last_window_range = (None, None)
 
-    def analyse(self, keys):
+        model_path = _resource_path("model.pkl")
+        if os.path.exists(model_path):
+            self.model = joblib.load(model_path)
+            print("[Detector] ML model loaded")
+        else:
+            self.model = None
+            print("[Detector] model.pkl not found — falling back to threshold (>=10 keys)")
+
+    def analyse(self, keys, trigger_event=None):
         if self.blocked:
             return
 
         self.keys = keys
         self.keysWithGaps = []
-        for i in range (1, len(self.keys)):
-            gap= self.keys[i][1] - self.keys[i-1][1]
+        for i in range(1, len(self.keys)):
+            gap = self.keys[i][1] - self.keys[i-1][1]
             self.keysWithGaps.append((self.keys[i-1][0], gap))
 
+        if len(self.keys) >= MIN_KEYS:
+            key_count, avg_gap, var = self.Format(self.keysWithGaps)
+            is_malicious = self._predict(key_count, avg_gap, var)
 
-        print("Analysing", len(self.keysWithGaps), "keys:", self.keysWithGaps)
-        if len(self.keysWithGaps)>=10:
-            self.blocked=True
-            self.Lockscreen.block()
-            self.Fullscreen.trigger()
+            if is_malicious:
+                self.blocked = True
+                self.Lockscreen.block()
+                if trigger_event is not None:
+                    trigger_event.set()
 
+            # Save to CSV only when window actually changed
+            window_range = (self.keys[0][1], self.keys[-1][1])
+            if window_range != self._last_window_range:
+                self._last_window_range = window_range
+                self.DataCollector.save(key_count, avg_gap, var, label=LABEL)
 
+    def _predict(self, key_count, avg_gap, var):
+        if self.model is not None:
+            prediction = self.model.predict([[key_count, avg_gap, var]])[0]
+            return prediction == 1
+        else:
+            return len(self.keysWithGaps) >= 10
 
-        #output to csv
-        key_count, avg_gap, var = self.Format(self.keysWithGaps)
-        self.DataCollector.save(key_count, avg_gap, var)
-    def Format(self,keysWithGaps):
-
-        if len(keysWithGaps) == 0:  return 0, 0, 0
-
-        gaps = []
-        for key, gap in self.keysWithGaps:
-            gaps.append(gap)
+    def Format(self, keysWithGaps):
+        if len(keysWithGaps) == 0:
+            return 0, 0, 0
+        gaps = [gap for _, gap in keysWithGaps]
         key_count = len(keysWithGaps)
         avg_gap = statistics.mean(gaps)
         var = np.var(gaps)
