@@ -18,6 +18,7 @@ class Fullscreen:
         self.quit_string = ''.join(random.choices(string.ascii_uppercase, k=6))
 
     def trigger(self, master):
+        self.quit_string = ''.join(random.choices(string.ascii_uppercase, k=6))
         self.tk = Toplevel(master)
         self.tk.configure(bg=BG)
         self.tk.attributes("-fullscreen", True)
@@ -106,10 +107,13 @@ class Fullscreen:
         self.entry.master.config(highlightbackground=ACCENT, highlightthickness=1)
 
     def _keep_focus(self):
-        self.tk.attributes("-topmost", True)
-        self.tk.focus_force()
-        self.entry.focus_set()
-        self.tk.after(500, self._keep_focus)
+        try:
+            self.tk.attributes("-topmost", True)
+            self.tk.focus_force()
+            self.entry.focus_set()
+            self.tk.after(500, self._keep_focus)
+        except Exception:
+            pass
 
     def check_input(self, event):
         if self.entry.get() == self.quit_string:

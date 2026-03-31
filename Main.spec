@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('model.pkl', '.')]
+datas = [('model.pkl', '.'), ('mk-logo.png', '.')]
 binaries = []
 hiddenimports = ['pystray._win32']
 tmp_ret = collect_all('sklearn')
@@ -30,6 +30,7 @@ exe = EXE(
     a.datas,
     [],
     name='Main',
+    icon='mk-logo.png',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

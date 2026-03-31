@@ -1,12 +1,32 @@
+import sys
+import os
+import ctypes
+
+# ── single-instance guard ──────────────────────────────────────
+_mutex = ctypes.windll.kernel32.CreateMutexW(None, False, "Global\\DuckyFenceMutex")
+if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+    from tkinter import Tk
+    import tkinter.messagebox as _mb
+    _r = Tk(); _r.withdraw()
+    _mb.showwarning("DuckyFence", "DuckyFence is already running in the system tray.")
+    _r.destroy()
+    sys.exit(0)
+
 from tkinter import Tk
 from pynput import keyboard
 import threading
 import time
 import pystray
-from PIL import Image, ImageDraw
+from PIL import Image
 from Detector import Detector
 from Listener import Listener
 from Splash import Splash
+
+
+def _resource_path(filename):
+    base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, filename)
+
 
 # ── shared state ──────────────────────────────────────────────
 keys          = []
@@ -41,23 +61,16 @@ def analyse_loop():
 def check_trigger():
     if trigger_event.is_set():
         trigger_event.clear()
+        detector.Lockscreen.unblock()       # unblock first so user can type in captcha
         detector.Fullscreen.trigger(root)   # blocks via wait_window until dismissed
-        detector.Lockscreen.unblock()       # restore input after user unlocks
+        detector.blocked = False            # reset so detector can fire again next time
     if running:
         root.after(100, check_trigger)
 
 
 # ── tray icon ─────────────────────────────────────────────────
 def _make_tray_image():
-    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-    d   = ImageDraw.Draw(img)
-    # shield shape
-    shield = [(32, 2), (60, 13), (60, 35), (32, 62), (4, 35), (4, 13)]
-    d.polygon(shield, fill="#e53935")
-    # inner cutout
-    inner = [(32, 12), (50, 20), (50, 36), (32, 52), (14, 36), (14, 20)]
-    d.polygon(inner, fill="#7f1c1c")
-    return img
+    return Image.open(_resource_path("mk-logo.png")).convert("RGBA").resize((64, 64), Image.LANCZOS)
 
 def _on_tray_exit(icon, item):
     global running
