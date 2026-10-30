@@ -1,0 +1,7 @@
+build/
+dist/
+.venv/
+__pycache__/
+
+# CMU benchmark, downloaded by build_dataset.py
+Data/DSL-StrongPasswordData.csv

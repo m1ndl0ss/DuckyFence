@@ -29,7 +29,11 @@ def _resource_path(filename):
 
 
 # ── shared state ──────────────────────────────────────────────
+WINDOW = 3.0   # seconds of typing the detector looks at
+TICK   = 0.25  # analysis rate; was 0.5 in v1, halving it halves time-to-block
+
 keys          = []
+keys_lock     = threading.Lock()  # listener thread appends, analysis thread prunes
 running       = True
 trigger_event = threading.Event()
 root          = Tk()
@@ -38,7 +42,8 @@ root.withdraw()  # hidden — all UI is Toplevel or tray
 
 # ── keyboard callbacks ────────────────────────────────────────
 def add_key(key):
-    keys.append((key, time.time()))
+    with keys_lock:
+        keys.append((key, time.time()))
 
 def on_release(key):
     global running
@@ -50,10 +55,11 @@ def on_release(key):
 # ── analysis loop (background thread) ────────────────────────
 def analyse_loop():
     while running:
-        time.sleep(0.5)
+        time.sleep(TICK)
         now = time.time()
-        window = [k for k in keys if now - k[1] <= 3.0]
-        keys[:] = window
+        with keys_lock:
+            keys[:] = [k for k in keys if now - k[1] <= WINDOW]
+            window = list(keys)
         detector.analyse(window, trigger_event)
 
 

@@ -1,52 +1,101 @@
-import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.metrics import classification_report, confusion_matrix
-import joblib
 import os
+import json
 
-CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data/training_data.csv")
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data/model.pkl")
-MIN_KEYS = 5
+import numpy as np
+import pandas as pd
+import joblib
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import StratifiedGroupKFold
+from sklearn.metrics import roc_curve, roc_auc_score, confusion_matrix
 
-df = pd.read_csv(CSV)
-df = df[df['key_count'] >= MIN_KEYS].reset_index(drop=True)
+from features import FEATURE_NAMES, MIN_GAPS, from_aggregates
 
-print(f"Rows after filtering: {len(df)}")
-print(f"Label distribution:\n{df['label'].value_counts().to_string()}\n")
+BASE = os.path.dirname(os.path.abspath(__file__))
+CSV = os.path.join(BASE, "Data/dataset_v2.csv")
+OUT = os.path.join(BASE, "Data/model.pkl")
 
-X = df[['key_count', 'avg_gap', 'variance']].values
-y = df['label'].values
+# operating point: hold false positives on human windows at or under 0.1%,
+# then take whatever recall that buys. v1 just used predict() at 0.5.
+TARGET_FPR = 0.001
+SEED = 42
 
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y
-)
 
-model = RandomForestClassifier(
-    n_estimators=200,
-    class_weight='balanced',
-    random_state=42
-)
-model.fit(X_train, y_train)
+def build_matrix(df):
+    rows = [from_aggregates(kc, ag, var)
+            for kc, ag, var in zip(df['key_count'], df['avg_gap'], df['variance'])]
+    return np.array(rows)
 
-y_pred = model.predict(X_test)
-print("=== Test set results ===")
-print(classification_report(y_test, y_pred, target_names=["human", "malicious"]))
 
-print("=== Confusion matrix (human / malicious) ===")
-cm = confusion_matrix(y_test, y_pred)
-print(f"  Predicted human | Predicted malicious")
-print(f"  Human:      {cm[0][0]:>5}  |  {cm[0][1]:>5}")
-print(f"  Malicious:  {cm[1][0]:>5}  |  {cm[1][1]:>5}\n")
+def make_model():
+    return RandomForestClassifier(
+        n_estimators=300,
+        class_weight='balanced',
+        random_state=SEED,
+        n_jobs=-1,
+    )
 
-cv_scores = cross_val_score(model, X, y, cv=5, scoring='f1')
-print(f"5-fold CV F1: {cv_scores.mean():.3f} ± {cv_scores.std():.3f}")
 
-importances = model.feature_importances_
-features = ['key_count', 'avg_gap', 'variance']
-print("\nFeature importances:")
-for f, imp in sorted(zip(features, importances), key=lambda x: -x[1]):
-    print(f"  {f}: {imp:.3f}")
+def pick_threshold(y_true, probs, target_fpr=TARGET_FPR):
+    """Highest-recall threshold that keeps FPR at or under target."""
+    fpr, tpr, thr = roc_curve(y_true, probs)
+    ok = np.where(fpr <= target_fpr)[0]
+    best = ok[np.argmax(tpr[ok])]
+    t = thr[best]
+    # roc_curve pads the first threshold with inf
+    return float(min(t, 1.0))
 
-joblib.dump(model, OUT)
-print(f"\nModel saved to {OUT}")
+
+def grouped_oof(X, y, groups, factory=make_model, n_splits=5):
+    """Out-of-fold probabilities with whole subjects held out per fold,
+    so a typist (or attack profile) never appears in both train and test."""
+    oof = np.zeros(len(y))
+    skf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=SEED)
+    for tr, te in skf.split(X, y, groups):
+        m = factory()
+        m.fit(X[tr], y[tr])
+        oof[te] = m.predict_proba(X[te])[:, 1]
+    return oof
+
+
+if __name__ == "__main__":
+    df = pd.read_csv(CSV)
+    print(f"{len(df)} windows")
+    print(df.groupby(['label', 'source']).size().to_string(), "\n")
+
+    X = build_matrix(df)
+    y = df['label'].values
+    groups = df['subject'].values
+
+    oof = grouped_oof(X, y, groups)
+    threshold = pick_threshold(y, oof)
+    pred = (oof >= threshold).astype(int)
+
+    tn, fp, fn, tp = confusion_matrix(y, pred).ravel()
+    print(f"Threshold @ FPR<={TARGET_FPR:.1%}: {threshold:.3f}")
+    print(f"OOF ROC AUC: {roc_auc_score(y, oof):.4f}")
+    print(f"OOF TPR: {tp / (tp + fn):.4f}   OOF FPR: {fp / (fp + tn):.4f}")
+    print("Confusion matrix (rows: human, injection):")
+    print(f"  {tn:>5}  {fp:>5}")
+    print(f"  {fn:>5}  {tp:>5}\n")
+
+    model = make_model()
+    model.fit(X, y)
+
+    print("Feature importances:")
+    for name, imp in sorted(zip(FEATURE_NAMES, model.feature_importances_), key=lambda x: -x[1]):
+        print(f"  {name}: {imp:.3f}")
+
+    bundle = {
+        'model': model,
+        'threshold': threshold,
+        'features': FEATURE_NAMES,
+        'min_gaps': MIN_GAPS,
+        'target_fpr': TARGET_FPR,
+        'version': 2,
+    }
+    joblib.dump(bundle, OUT)
+    print(f"\nModel bundle saved to {OUT}")
+
+    meta = {k: bundle[k] for k in ('threshold', 'features', 'min_gaps', 'target_fpr', 'version')}
+    with open(os.path.join(BASE, "Data/model_meta.json"), 'w') as f:
+        json.dump(meta, f, indent=2)

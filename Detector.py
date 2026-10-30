@@ -1,12 +1,16 @@
-from Lockscreen import Lockscreen
-import numpy as np
-import statistics
-from Fullscreen import Fullscreen
-import joblib
 import sys
 import os
 
-MIN_KEYS = 5
+import joblib
+
+import features
+from Lockscreen import Lockscreen
+from Fullscreen import Fullscreen
+
+# windows that must score malicious back-to-back before input is blocked.
+# a single noisy window can't lock the machine anymore; a real payload
+# stays inside the 3s window long enough to confirm on the next tick.
+CONFIRM_WINDOWS = 2
 
 
 def _resource_path(filename):
@@ -17,52 +21,52 @@ def _resource_path(filename):
 
 class Detector:
     def __init__(self):
-        self.keys = []
-        self.keysWithGaps = []
         self.Lockscreen = Lockscreen()
         self.Fullscreen = Fullscreen()
         self.blocked = False
+        self.hits = 0
+        self.model = None
+        self.threshold = 0.5
+        self.min_gaps = features.MIN_GAPS
 
         model_path = _resource_path("Data/model.pkl")
         if os.path.exists(model_path):
-            self.model = joblib.load(model_path)
-            print("[Detector] ML model loaded")
+            bundle = joblib.load(model_path)
+            if isinstance(bundle, dict):
+                self.model = bundle['model']
+                self.threshold = bundle['threshold']
+                self.min_gaps = bundle.get('min_gaps', self.min_gaps)
+            else:
+                self.model = bundle  # old flat v1 pickle
+            # single-row predicts: the n_jobs=-1 thread pool costs ~50ms per call
+            self.model.n_jobs = 1
+            print(f"[Detector] model loaded, threshold {self.threshold:.3f}")
         else:
-            self.model = None
-            print("[Detector] model.pkl not found — falling back to threshold (>=10 keys)")
+            print("[Detector] model.pkl not found — falling back to rate rule")
 
     def analyse(self, keys, trigger_event=None):
         if self.blocked:
             return
 
-        self.keys = keys
-        self.keysWithGaps = []
-        for i in range(1, len(self.keys)):
-            gap = self.keys[i][1] - self.keys[i-1][1]
-            self.keysWithGaps.append((self.keys[i-1][0], gap))
+        gaps = [keys[i][1] - keys[i - 1][1] for i in range(1, len(keys))]
+        if len(gaps) < self.min_gaps:
+            self.hits = 0
+            return
 
-        if len(self.keys) >= MIN_KEYS:
-            key_count, avg_gap, var = self.Format(self.keysWithGaps)
-            is_malicious = self._predict(key_count, avg_gap, var)
-
-            if is_malicious:
-                self.blocked = True
-                self.Lockscreen.block()
-                if trigger_event is not None:
-                    trigger_event.set()
-
-    def _predict(self, key_count, avg_gap, var):
-        if self.model is not None:
-            prediction = self.model.predict([[key_count, avg_gap, var]])[0]
-            return prediction == 1
+        if self._predict(gaps):
+            self.hits += 1
         else:
-            return len(self.keysWithGaps) >= 10
+            self.hits = 0
 
-    def Format(self, keysWithGaps):
-        if len(keysWithGaps) == 0:
-            return 0, 0, 0
-        gaps = [gap for _, gap in keysWithGaps]
-        key_count = len(keysWithGaps)
-        avg_gap = statistics.mean(gaps)
-        var = np.var(gaps)
-        return key_count, avg_gap, var
+        if self.hits >= CONFIRM_WINDOWS:
+            self.hits = 0
+            self.blocked = True
+            self.Lockscreen.block()
+            if trigger_event is not None:
+                trigger_event.set()
+
+    def _predict(self, gaps):
+        if self.model is None:
+            return len(gaps) >= 10
+        vec = features.from_gaps(gaps)
+        return self.model.predict_proba([vec])[0][1] >= self.threshold
