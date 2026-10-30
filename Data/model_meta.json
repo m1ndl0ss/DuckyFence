@@ -1,0 +1,13 @@
+{
+  "threshold": 0.8466666666666667,
+  "features": [
+    "key_count",
+    "avg_gap",
+    "variance",
+    "cv",
+    "span"
+  ],
+  "min_gaps": 5,
+  "target_fpr": 0.001,
+  "version": 2
+}

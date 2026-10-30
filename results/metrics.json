@@ -1,0 +1,104 @@
+{
+  "dataset": {
+    "windows": 23203,
+    "human": 21086,
+    "injection": 2117
+  },
+  "v1_own_data": {
+    "tpr": 0.9487179487179487,
+    "fpr": 0.0014577259475218659,
+    "precision": 0.9910714285714286,
+    "f1": 0.9694323144104804,
+    "confusion": [
+      [
+        685,
+        1
+      ],
+      [
+        6,
+        111
+      ]
+    ],
+    "auc": 0.998897361142259
+  },
+  "v1_cross_dataset": {
+    "tpr": 0.6835,
+    "fpr": 0.002696078431372549,
+    "precision": 0.9613220815752461,
+    "f1": 0.798947983635301,
+    "confusion": [
+      [
+        20345,
+        55
+      ],
+      [
+        633,
+        1367
+      ]
+    ],
+    "auc": 0.9987795465686274
+  },
+  "v2_deployment": {
+    "tpr": 0.992914501653283,
+    "fpr": 0.0025609409086597744,
+    "precision": 0.9749536178107606,
+    "f1": 0.9838520945471566,
+    "confusion": [
+      [
+        21032,
+        54
+      ],
+      [
+        15,
+        2102
+      ]
+    ],
+    "auc": 0.9997364191926793
+  },
+  "v2_unseen_speeds": {
+    "tpr": 0.9607935758148323,
+    "fpr": 0.03073129090391729,
+    "precision": 0.7583892617449665,
+    "f1": 0.8476765992915191,
+    "confusion": [
+      [
+        20438,
+        648
+      ],
+      [
+        83,
+        2034
+      ]
+    ],
+    "auc": 0.9922974299952809
+  },
+  "feature_ablation": {
+    "v1_features": {
+      "auc": 0.9995754391075691,
+      "tpr_at_target_fpr": 0.9820500708549834
+    },
+    "v2_features": {
+      "auc": 0.9997364191926793,
+      "tpr_at_target_fpr": 0.9914974019839395
+    }
+  },
+  "model_comparison": {
+    "random_forest": {
+      "auc": 0.9997364191926793,
+      "tpr_at_target_fpr": 0.9914974019839395
+    },
+    "gradient_boosting": {
+      "auc": 0.9898502347562769,
+      "tpr_at_target_fpr": 0.0
+    },
+    "logistic_regression": {
+      "auc": 0.997562403977037,
+      "tpr_at_target_fpr": 0.6910722720831365
+    }
+  },
+  "latency": {
+    "median_ms": 11.294250027276576,
+    "p95_ms": 13.576219882816076
+  },
+  "protocol": "v2: 5-fold StratifiedGroupKFold by subject/profile, threshold tuned on inner 3-fold grouped CV of each training fold"
+}
