@@ -1,18 +1,20 @@
-from tkinter import Toplevel, Label, Frame
+from tkinter import Frame, Label, Toplevel
 
-BG     = "#0d0d0d"
+BG = "#0d0d0d"
 ACCENT = "#e53935"
-DIM    = "#2a2a2a"
+DIM = "#2a2a2a"
 
 
 class Splash:
+    """Startup splash with a short typing animation, then hands off to on_done."""
+
     _TEXT = "DUCKY FENCE"
 
     def __init__(self, root, on_done):
-        self.root     = root
-        self.on_done  = on_done
-        self._idx     = 0
-        self._cursor  = True
+        self.root = root
+        self.on_done = on_done
+        self._idx = 0
+        self._cursor = True
 
         win = Toplevel(root)
         self.win = win
@@ -32,14 +34,12 @@ class Splash:
         inner.place(relx=0.5, rely=0.45, anchor="center")
 
         self.title_lbl = Label(
-            inner, text="", font=("Courier New", 42, "bold"),
-            fg=ACCENT, bg=BG
+            inner, text="", font=("Courier New", 42, "bold"), fg=ACCENT, bg=BG
         )
         self.title_lbl.pack()
 
         self.status_lbl = Label(
-            inner, text="", font=("Segoe UI", 10),
-            fg="#444444", bg=BG
+            inner, text="", font=("Segoe UI", 10), fg="#444444", bg=BG
         )
         self.status_lbl.pack(pady=(18, 0))
 
@@ -52,7 +52,7 @@ class Splash:
         if self._idx <= len(self._TEXT):
             cursor = "█" if self._cursor else " "
             self._cursor = not self._cursor
-            self.title_lbl.config(text=self._TEXT[:self._idx] + cursor)
+            self.title_lbl.config(text=self._TEXT[: self._idx] + cursor)
             self._idx += 1
             self.win.after(75, self._type_next)
         else:

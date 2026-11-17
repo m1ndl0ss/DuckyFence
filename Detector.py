@@ -1,25 +1,21 @@
-import sys
 import os
 
 import joblib
 
+import config
 import features
-from Lockscreen import Lockscreen
 from Fullscreen import Fullscreen
-
-# windows that must score malicious back-to-back before input is blocked.
-# a single noisy window can't lock the machine anymore; a real payload
-# stays inside the 3s window long enough to confirm on the next tick.
-CONFIRM_WINDOWS = 2
-
-
-def _resource_path(filename):
-    """Works both in dev and when bundled by PyInstaller."""
-    base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(base, filename)
+from Lockscreen import Lockscreen
 
 
 class Detector:
+    """Scores sliding windows of keystrokes and blocks input on confirmation.
+
+    A window only counts once it has at least `min_gaps` inter-key gaps, and
+    `config.CONFIRM_WINDOWS` consecutive malicious windows are required before
+    input is blocked, so a single noisy window can't lock the machine.
+    """
+
     def __init__(self):
         self.Lockscreen = Lockscreen()
         self.Fullscreen = Fullscreen()
@@ -29,13 +25,13 @@ class Detector:
         self.threshold = 0.5
         self.min_gaps = features.MIN_GAPS
 
-        model_path = _resource_path("Data/model.pkl")
+        model_path = config.resource_path(config.MODEL_FILE)
         if os.path.exists(model_path):
             bundle = joblib.load(model_path)
             if isinstance(bundle, dict):
-                self.model = bundle['model']
-                self.threshold = bundle['threshold']
-                self.min_gaps = bundle.get('min_gaps', self.min_gaps)
+                self.model = bundle["model"]
+                self.threshold = bundle["threshold"]
+                self.min_gaps = bundle.get("min_gaps", self.min_gaps)
             else:
                 self.model = bundle  # old flat v1 pickle
             # single-row predicts: the n_jobs=-1 thread pool costs ~50ms per call
@@ -45,6 +41,7 @@ class Detector:
             print("[Detector] model.pkl not found — falling back to rate rule")
 
     def analyse(self, keys, trigger_event=None):
+        """Score one window of (key, timestamp) tuples; block on confirmation."""
         if self.blocked:
             return
 
@@ -58,7 +55,7 @@ class Detector:
         else:
             self.hits = 0
 
-        if self.hits >= CONFIRM_WINDOWS:
+        if self.hits >= config.CONFIRM_WINDOWS:
             self.hits = 0
             self.blocked = True
             self.Lockscreen.block()

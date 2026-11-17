@@ -1,12 +1,12 @@
-import os
 import json
+import os
 
+import joblib
 import numpy as np
 import pandas as pd
-import joblib
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import confusion_matrix, roc_auc_score, roc_curve
 from sklearn.model_selection import StratifiedGroupKFold
-from sklearn.metrics import roc_curve, roc_auc_score, confusion_matrix
 
 from features import FEATURE_NAMES, MIN_GAPS, from_aggregates
 
@@ -21,15 +21,17 @@ SEED = 42
 
 
 def build_matrix(df):
-    rows = [from_aggregates(kc, ag, var)
-            for kc, ag, var in zip(df['key_count'], df['avg_gap'], df['variance'])]
+    rows = [
+        from_aggregates(kc, ag, var)
+        for kc, ag, var in zip(df["key_count"], df["avg_gap"], df["variance"])
+    ]
     return np.array(rows)
 
 
 def make_model():
     return RandomForestClassifier(
         n_estimators=300,
-        class_weight='balanced',
+        class_weight="balanced",
         random_state=SEED,
         n_jobs=-1,
     )
@@ -60,11 +62,11 @@ def grouped_oof(X, y, groups, factory=make_model, n_splits=5):
 if __name__ == "__main__":
     df = pd.read_csv(CSV)
     print(f"{len(df)} windows")
-    print(df.groupby(['label', 'source']).size().to_string(), "\n")
+    print(df.groupby(["label", "source"]).size().to_string(), "\n")
 
     X = build_matrix(df)
-    y = df['label'].values
-    groups = df['subject'].values
+    y = df["label"].values
+    groups = df["subject"].values
 
     oof = grouped_oof(X, y, groups)
     threshold = pick_threshold(y, oof)
@@ -82,20 +84,25 @@ if __name__ == "__main__":
     model.fit(X, y)
 
     print("Feature importances:")
-    for name, imp in sorted(zip(FEATURE_NAMES, model.feature_importances_), key=lambda x: -x[1]):
+    for name, imp in sorted(
+        zip(FEATURE_NAMES, model.feature_importances_), key=lambda x: -x[1]
+    ):
         print(f"  {name}: {imp:.3f}")
 
     bundle = {
-        'model': model,
-        'threshold': threshold,
-        'features': FEATURE_NAMES,
-        'min_gaps': MIN_GAPS,
-        'target_fpr': TARGET_FPR,
-        'version': 2,
+        "model": model,
+        "threshold": threshold,
+        "features": FEATURE_NAMES,
+        "min_gaps": MIN_GAPS,
+        "target_fpr": TARGET_FPR,
+        "version": 2,
     }
     joblib.dump(bundle, OUT)
     print(f"\nModel bundle saved to {OUT}")
 
-    meta = {k: bundle[k] for k in ('threshold', 'features', 'min_gaps', 'target_fpr', 'version')}
-    with open(os.path.join(BASE, "Data/model_meta.json"), 'w') as f:
+    meta = {
+        k: bundle[k]
+        for k in ("threshold", "features", "min_gaps", "target_fpr", "version")
+    }
+    with open(os.path.join(BASE, "Data/model_meta.json"), "w") as f:
         json.dump(meta, f, indent=2)

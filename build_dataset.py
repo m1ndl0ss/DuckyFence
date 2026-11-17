@@ -16,6 +16,7 @@ Attack windows:
     plus scheduling jitter and occasional USB frame hiccups. Simulated
     rows are tagged in the 'source' column so they can be excluded.
 """
+
 import os
 import urllib.request
 
@@ -42,24 +43,26 @@ def cmu_rows():
         print(f"Downloading CMU benchmark to {CMU_CSV} ...")
         urllib.request.urlretrieve(CMU_URL, CMU_CSV)
     df = pd.read_csv(CMU_CSV)
-    dd_cols = [c for c in df.columns if c.startswith('DD.')]
+    dd_cols = [c for c in df.columns if c.startswith("DD.")]
     gaps = df[dd_cols].values
-    return pd.DataFrame({
-        'key_count': gaps.shape[1],
-        'avg_gap': gaps.mean(axis=1),
-        'variance': gaps.var(axis=1),
-        'label': 0,
-        'source': 'cmu',
-        'subject': df['subject'],
-    })
+    return pd.DataFrame(
+        {
+            "key_count": gaps.shape[1],
+            "avg_gap": gaps.mean(axis=1),
+            "variance": gaps.var(axis=1),
+            "label": 0,
+            "source": "cmu",
+            "subject": df["subject"],
+        }
+    )
 
 
 def v1_rows():
     df = pd.read_csv(V1_CSV)
-    df = df[df['key_count'] >= MIN_GAPS].reset_index(drop=True)
-    df['source'] = np.where(df['label'] == 1, 'collected_attack', 'collected_human')
-    df['subject'] = np.where(df['label'] == 1, 'attack_real', 'local')
-    return df[['key_count', 'avg_gap', 'variance', 'label', 'source', 'subject']]
+    df = df[df["key_count"] >= MIN_GAPS].reset_index(drop=True)
+    df["source"] = np.where(df["label"] == 1, "collected_attack", "collected_human")
+    df["subject"] = np.where(df["label"] == 1, "attack_real", "local")
+    return df[["key_count", "avg_gap", "variance", "label", "source", "subject"]]
 
 
 def simulated_rows():
@@ -72,14 +75,16 @@ def simulated_rows():
             # USB polling / scheduler hiccups: a few gaps land a frame late
             hiccups = rng.random(n) < 0.03
             gaps[hiccups] += rng.uniform(0.001, 0.008, hiccups.sum())
-            rows.append({
-                'key_count': n,
-                'avg_gap': gaps.mean(),
-                'variance': gaps.var(),
-                'label': 1,
-                'source': 'simulated_attack',
-                'subject': f'attack_sim_{int(delay * 1000)}ms',
-            })
+            rows.append(
+                {
+                    "key_count": n,
+                    "avg_gap": gaps.mean(),
+                    "variance": gaps.var(),
+                    "label": 1,
+                    "source": "simulated_attack",
+                    "subject": f"attack_sim_{int(delay * 1000)}ms",
+                }
+            )
     return pd.DataFrame(rows)
 
 
@@ -87,4 +92,4 @@ if __name__ == "__main__":
     out = pd.concat([cmu_rows(), v1_rows(), simulated_rows()], ignore_index=True)
     out.to_csv(OUT, index=False)
     print(f"{len(out)} windows -> {OUT}")
-    print(out.groupby(['label', 'source']).size().to_string())
+    print(out.groupby(["label", "source"]).size().to_string())
