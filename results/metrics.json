@@ -97,8 +97,14 @@
     }
   },
   "latency": {
-    "median_ms": 11.294250027276576,
-    "p95_ms": 13.576219882816076
+    "median_ms": 11.428300058469176,
+    "p95_ms": 23.680579825304452
+  },
+  "time_to_block": {
+    "runs": 25,
+    "median_ms": 509.0955998748541,
+    "p95_ms": 617.582000233233,
+    "max_ms": 624.8592999763787
   },
   "protocol": "v2: 5-fold StratifiedGroupKFold by subject/profile, threshold tuned on inner 3-fold grouped CV of each training fold"
 }

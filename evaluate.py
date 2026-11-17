@@ -8,30 +8,42 @@ so the numbers in the README are reproducible. Three questions:
 
 Writes figures + metrics to results/. Run build_dataset.py first.
 """
-import os
+
 import json
+import os
 import time
 
+import matplotlib
 import numpy as np
 import pandas as pd
-import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import confusion_matrix, roc_auc_score, roc_curve
+from sklearn.model_selection import (
+    StratifiedGroupKFold,
+    StratifiedKFold,
+    cross_val_predict,
+)
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import StratifiedKFold, StratifiedGroupKFold, cross_val_predict
-from sklearn.metrics import roc_curve, roc_auc_score, confusion_matrix
 
-from features import MIN_GAPS
-from train_model import build_matrix, make_model, pick_threshold, grouped_oof, TARGET_FPR, SEED
+from train_model import (
+    SEED,
+    TARGET_FPR,
+    build_matrix,
+    grouped_oof,
+    make_model,
+    pick_threshold,
+)
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 RESULTS = os.path.join(BASE, "results")
 os.makedirs(RESULTS, exist_ok=True)
 
-V1_FEATURES = ['key_count', 'avg_gap', 'variance']
+V1_FEATURES = ["key_count", "avg_gap", "variance"]
 
 BLUE = "#1f77b4"
 ORANGE = "#ff7f0e"
@@ -39,21 +51,22 @@ ORANGE = "#ff7f0e"
 
 def make_v1_model():
     # exactly what train_model.py built in March
-    return RandomForestClassifier(n_estimators=200, class_weight='balanced',
-                                  random_state=SEED, n_jobs=-1)
+    return RandomForestClassifier(
+        n_estimators=200, class_weight="balanced", random_state=SEED, n_jobs=-1
+    )
 
 
 def metrics_from(y, pred, prob=None):
     tn, fp, fn, tp = confusion_matrix(y, pred).ravel()
     out = {
-        'tpr': tp / (tp + fn),
-        'fpr': fp / (fp + tn),
-        'precision': tp / (tp + fp) if (tp + fp) else 0.0,
-        'f1': 2 * tp / (2 * tp + fp + fn),
-        'confusion': [[int(tn), int(fp)], [int(fn), int(tp)]],
+        "tpr": tp / (tp + fn),
+        "fpr": fp / (fp + tn),
+        "precision": tp / (tp + fp) if (tp + fp) else 0.0,
+        "f1": 2 * tp / (2 * tp + fp + fn),
+        "confusion": [[int(tn), int(fp)], [int(fn), int(tp)]],
     }
     if prob is not None:
-        out['auc'] = roc_auc_score(y, prob)
+        out["auc"] = roc_auc_score(y, prob)
     return out
 
 
@@ -62,9 +75,11 @@ def eval_v1_own_data(own):
     Overlapping sliding windows end up in both train and test folds, so these
     numbers are optimistic -- that is the point of keeping them here."""
     X = own[V1_FEATURES].values
-    y = own['label'].values
+    y = own["label"].values
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEED)
-    prob = cross_val_predict(make_v1_model(), X, y, cv=skf, method='predict_proba')[:, 1]
+    prob = cross_val_predict(make_v1_model(), X, y, cv=skf, method="predict_proba")[
+        :, 1
+    ]
     return metrics_from(y, (prob > 0.5).astype(int), prob)
 
 
@@ -72,8 +87,8 @@ def eval_v1_cross_dataset(own, rest):
     """Reality check: train v1 on everything I had in March, test on the CMU
     typists and the simulated payload profiles it has never seen."""
     m = make_v1_model()
-    m.fit(own[V1_FEATURES].values, own['label'].values)
-    y = rest['label'].values
+    m.fit(own[V1_FEATURES].values, own["label"].values)
+    y = rest["label"].values
     prob = m.predict_proba(rest[V1_FEATURES].values)[:, 1]
     return metrics_from(y, (prob > 0.5).astype(int), prob)
 
@@ -100,8 +115,12 @@ def deployment_groups(y, groups):
     attack windows are spread across folds: the deployed model trains on
     the full 1-75ms delay range, so attack speeds are not unseen at test
     time. The all-grouped variant answers the unseen-speed question."""
-    return np.array([g if label == 0 else f'atk_{i % 5}'
-                     for i, (label, g) in enumerate(zip(y, groups))])
+    return np.array(
+        [
+            g if label == 0 else f"atk_{i % 5}"
+            for i, (label, g) in enumerate(zip(y, groups))
+        ]
+    )
 
 
 def tpr_at(y, prob, target_fpr):
@@ -112,17 +131,18 @@ def tpr_at(y, prob, target_fpr):
 def model_comparison(X, y, groups):
     # sanity check that random forest is still the right pick for v2
     candidates = {
-        'random_forest': make_model,
-        'gradient_boosting': lambda: GradientBoostingClassifier(random_state=SEED),
-        'logistic_regression': lambda: make_pipeline(
-            StandardScaler(), LogisticRegression(class_weight='balanced', max_iter=1000)),
+        "random_forest": make_model,
+        "gradient_boosting": lambda: GradientBoostingClassifier(random_state=SEED),
+        "logistic_regression": lambda: make_pipeline(
+            StandardScaler(), LogisticRegression(class_weight="balanced", max_iter=1000)
+        ),
     }
     out = {}
     for name, factory in candidates.items():
         prob = grouped_oof(X, y, groups, factory=factory)
         out[name] = {
-            'auc': roc_auc_score(y, prob),
-            'tpr_at_target_fpr': tpr_at(y, prob, TARGET_FPR),
+            "auc": roc_auc_score(y, prob),
+            "tpr_at_target_fpr": tpr_at(y, prob, TARGET_FPR),
         }
     return out
 
@@ -139,8 +159,15 @@ def plot_confusion(cm, title, path):
     thresh = np.max(cm) / 2
     for i in range(2):
         for j in range(2):
-            ax.text(j, i, f"{cm[i][j]}", ha="center", va="center",
-                    color="white" if cm[i][j] > thresh else "#1a1a1a", fontsize=14)
+            ax.text(
+                j,
+                i,
+                f"{cm[i][j]}",
+                ha="center",
+                va="center",
+                color="white" if cm[i][j] > thresh else "#1a1a1a",
+                fontsize=14,
+            )
     fig.colorbar(im, ax=ax, shrink=0.8)
     fig.tight_layout()
     fig.savefig(path, dpi=150)
@@ -149,11 +176,18 @@ def plot_confusion(cm, title, path):
 
 def plot_roc(y, prob3, prob5, path):
     fig, ax = plt.subplots(figsize=(5.2, 4.2))
-    for prob, label, color in ((prob3, "v1 feature set (3)", ORANGE),
-                               (prob5, "v2 feature set (5)", BLUE)):
+    for prob, label, color in (
+        (prob3, "v1 feature set (3)", ORANGE),
+        (prob5, "v2 feature set (5)", BLUE),
+    ):
         fpr, tpr, _ = roc_curve(y, prob)
-        ax.plot(fpr, tpr, label=f"{label}, AUC {roc_auc_score(y, prob):.4f}",
-                color=color, linewidth=2)
+        ax.plot(
+            fpr,
+            tpr,
+            label=f"{label}, AUC {roc_auc_score(y, prob):.4f}",
+            color=color,
+            linewidth=2,
+        )
     ax.set_xscale("log")
     ax.set_xlim(1e-4, 1.0)
     ax.set_ylim(0.0, 1.02)
@@ -170,9 +204,11 @@ def latency_bench():
     # end-to-end decision cost for one window: feature extraction + predict.
     # uses a realistic injected burst (40 keys at ~5ms gaps with small jitter)
     import joblib
+
     import features
+
     bundle = joblib.load(os.path.join(BASE, "Data/model.pkl"))
-    model, threshold = bundle['model'], bundle['threshold']
+    model, threshold = bundle["model"], bundle["threshold"]
     # single-row predicts: the n_jobs=-1 thread pool costs ~50ms per call
     model.n_jobs = 1
     rng = np.random.default_rng(SEED)
@@ -181,20 +217,90 @@ def latency_bench():
     for _ in range(300):
         t0 = time.perf_counter()
         vec = features.from_gaps(gaps)
-        model.predict_proba([vec])[0][1] >= threshold
+        _ = model.predict_proba([vec])[0][1] >= threshold
         times.append((time.perf_counter() - t0) * 1000)
     return {
-        'median_ms': float(np.median(times)),
-        'p95_ms': float(np.percentile(times, 95)),
+        "median_ms": float(np.median(times)),
+        "p95_ms": float(np.percentile(times, 95)),
+    }
+
+
+def time_to_block_bench(n_runs=25):
+    """Wall-clock time from the first injected keystroke to BlockInput.
+
+    Replays Main.py's runtime loop (listener thread appends, analysis thread
+    ticks at 4 Hz, two-window confirmation) against the shipped model bundle.
+    The payload is a 5 ms/keystroke burst, a typical fast Rubber Ducky
+    profile. The phase offset between payload start and the tick schedule is
+    randomized per run, since that offset dominates the latency.
+    """
+    import threading
+
+    from config import TICK_SECONDS, WINDOW_SECONDS
+    from Detector import Detector
+
+    class _RecordingLockscreen:
+        def __init__(self):
+            self.blocked_at = None
+
+        def block(self):
+            self.blocked_at = time.perf_counter()
+
+        def unblock(self):
+            pass
+
+    detector = Detector()
+    rng = np.random.default_rng(SEED)
+    times = []
+    for _ in range(n_runs):
+        detector.blocked = False
+        detector.hits = 0
+        detector.Lockscreen = _RecordingLockscreen()
+        keys = []
+        keys_lock = threading.Lock()
+        stop = threading.Event()
+        first_key = []
+
+        def inject(stop=stop, keys=keys, keys_lock=keys_lock, first_key=first_key):
+            while not stop.is_set():
+                with keys_lock:
+                    if not first_key:
+                        first_key.append(time.perf_counter())
+                    keys.append((None, time.time()))
+                time.sleep(0.005)
+
+        injector = threading.Thread(target=inject, daemon=True)
+        starter = threading.Timer(rng.uniform(0, TICK_SECONDS), injector.start)
+        starter.start()
+        for _tick in range(40):  # safety bound: 10 s
+            time.sleep(TICK_SECONDS)
+            now = time.time()
+            with keys_lock:
+                keys[:] = [k for k in keys if now - k[1] <= WINDOW_SECONDS]
+                window = list(keys)
+            detector.analyse(window)
+            if detector.Lockscreen.blocked_at is not None:
+                break
+        stop.set()
+        starter.cancel()
+        if injector.is_alive():
+            injector.join()
+        if detector.Lockscreen.blocked_at is not None and first_key:
+            times.append((detector.Lockscreen.blocked_at - first_key[0]) * 1000)
+    return {
+        "runs": len(times),
+        "median_ms": float(np.median(times)),
+        "p95_ms": float(np.percentile(times, 95)),
+        "max_ms": float(np.max(times)),
     }
 
 
 if __name__ == "__main__":
     df = pd.read_csv(os.path.join(BASE, "Data/dataset_v2.csv"))
-    y = df['label'].values
-    groups = df['subject'].values
-    own = df[df['source'].isin(['collected_human', 'collected_attack'])]
-    rest = df[~df['source'].isin(['collected_human', 'collected_attack'])]
+    y = df["label"].values
+    groups = df["subject"].values
+    own = df[df["source"].isin(["collected_human", "collected_attack"])]
+    rest = df[~df["source"].isin(["collected_human", "collected_attack"])]
 
     print(f"{len(df)} windows ({(y == 0).sum()} human, {(y == 1).sum()} injection)")
 
@@ -208,16 +314,26 @@ if __name__ == "__main__":
     prob3 = grouped_oof(df[V1_FEATURES].values, y, dep_groups, factory=make_v1_model)
 
     print("\n                        tpr      fpr      precision  auc")
-    for name, m in (('v1 (own data)', v1_own), ('v1 (cross-dataset)', v1_cross),
-                    ('v2 (deployment)', v2), ('v2 (unseen speeds)', v2_unseen)):
-        print(f"  {name:<22} {m['tpr']:.4f}   {m['fpr']:.4f}   {m['precision']:.4f}     {m['auc']:.4f}")
+    for name, m in (
+        ("v1 (own data)", v1_own),
+        ("v1 (cross-dataset)", v1_cross),
+        ("v2 (deployment)", v2),
+        ("v2 (unseen speeds)", v2_unseen),
+    ):
+        print(
+            f"  {name:<22} {m['tpr']:.4f}   {m['fpr']:.4f}   {m['precision']:.4f}     {m['auc']:.4f}"
+        )
         print(f"    confusion: {m['confusion']}")
 
     ablation = {
-        'v1_features': {'auc': roc_auc_score(y, prob3),
-                        'tpr_at_target_fpr': tpr_at(y, prob3, TARGET_FPR)},
-        'v2_features': {'auc': roc_auc_score(y, prob5),
-                        'tpr_at_target_fpr': tpr_at(y, prob5, TARGET_FPR)},
+        "v1_features": {
+            "auc": roc_auc_score(y, prob3),
+            "tpr_at_target_fpr": tpr_at(y, prob3, TARGET_FPR),
+        },
+        "v2_features": {
+            "auc": roc_auc_score(y, prob5),
+            "tpr_at_target_fpr": tpr_at(y, prob5, TARGET_FPR),
+        },
     }
     print(f"\nFeature ablation, grouped OOF, TPR @ FPR<={TARGET_FPR:.1%}:")
     for name, r in ablation.items():
@@ -226,34 +342,65 @@ if __name__ == "__main__":
     comparison = model_comparison(X5, y, dep_groups)
     print("\nModel comparison (v2 features, grouped OOF):")
     for name, r in comparison.items():
-        print(f"  {name:<20} AUC {r['auc']:.4f}   TPR@target {r['tpr_at_target_fpr']:.4f}")
+        print(
+            f"  {name:<20} AUC {r['auc']:.4f}   TPR@target {r['tpr_at_target_fpr']:.4f}"
+        )
 
-    plot_confusion(v1_own['confusion'], "v1, own data, March protocol",
-                   os.path.join(RESULTS, "confusion_v1_own.png"))
-    plot_confusion(v1_cross['confusion'], "v1 model on 51 unseen typists",
-                   os.path.join(RESULTS, "confusion_v1_cross.png"))
-    plot_confusion(v2['confusion'], "v2, subject-held-out, FPR target 0.1%",
-                   os.path.join(RESULTS, "confusion_v2.png"))
-    plot_confusion(v2_unseen['confusion'], "v2, attack speeds held out of training",
-                   os.path.join(RESULTS, "confusion_v2_unseen.png"))
+    plot_confusion(
+        v1_own["confusion"],
+        "v1, own data, March protocol",
+        os.path.join(RESULTS, "confusion_v1_own.png"),
+    )
+    plot_confusion(
+        v1_cross["confusion"],
+        "v1 model on 51 unseen typists",
+        os.path.join(RESULTS, "confusion_v1_cross.png"),
+    )
+    plot_confusion(
+        v2["confusion"],
+        "v2, subject-held-out, FPR target 0.1%",
+        os.path.join(RESULTS, "confusion_v2.png"),
+    )
+    plot_confusion(
+        v2_unseen["confusion"],
+        "v2, attack speeds held out of training",
+        os.path.join(RESULTS, "confusion_v2_unseen.png"),
+    )
     plot_roc(y, prob3, prob5, os.path.join(RESULTS, "roc.png"))
 
     lat = latency_bench()
-    print(f"\nPer-window decision cost: median {lat['median_ms']:.2f} ms, "
-          f"p95 {lat['p95_ms']:.2f} ms")
+    print(
+        f"\nPer-window decision cost: median {lat['median_ms']:.2f} ms, "
+        f"p95 {lat['p95_ms']:.2f} ms"
+    )
 
-    with open(os.path.join(RESULTS, "metrics.json"), 'w') as f:
-        json.dump({
-            'dataset': {'windows': len(df), 'human': int((y == 0).sum()),
-                        'injection': int((y == 1).sum())},
-            'v1_own_data': v1_own,
-            'v1_cross_dataset': v1_cross,
-            'v2_deployment': v2,
-            'v2_unseen_speeds': v2_unseen,
-            'feature_ablation': ablation,
-            'model_comparison': comparison,
-            'latency': lat,
-            'protocol': 'v2: 5-fold StratifiedGroupKFold by subject/profile, '
-                        'threshold tuned on inner 3-fold grouped CV of each training fold',
-        }, f, indent=2)
+    ttb = time_to_block_bench()
+    print(
+        f"Time from first injected key to input block ({ttb['runs']} runs): "
+        f"median {ttb['median_ms']:.0f} ms, p95 {ttb['p95_ms']:.0f} ms, "
+        f"max {ttb['max_ms']:.0f} ms"
+    )
+
+    with open(os.path.join(RESULTS, "metrics.json"), "w") as f:
+        json.dump(
+            {
+                "dataset": {
+                    "windows": len(df),
+                    "human": int((y == 0).sum()),
+                    "injection": int((y == 1).sum()),
+                },
+                "v1_own_data": v1_own,
+                "v1_cross_dataset": v1_cross,
+                "v2_deployment": v2,
+                "v2_unseen_speeds": v2_unseen,
+                "feature_ablation": ablation,
+                "model_comparison": comparison,
+                "latency": lat,
+                "time_to_block": ttb,
+                "protocol": "v2: 5-fold StratifiedGroupKFold by subject/profile, "
+                "threshold tuned on inner 3-fold grouped CV of each training fold",
+            },
+            f,
+            indent=2,
+        )
     print(f"\nFigures and metrics written to {RESULTS}")
