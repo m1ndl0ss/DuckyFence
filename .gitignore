@@ -1,7 +1,17 @@
+# build artifacts
 build/
 dist/
-.venv/
 __pycache__/
+.pytest_cache/
+.ruff_cache/
+
+# environments and IDE
+.venv/
+.idea/
+.claude/
 
 # CMU benchmark, downloaded by build_dataset.py
 Data/DSL-StrongPasswordData.csv
+
+# DataCollector output
+Data/output.csv
