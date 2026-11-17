@@ -1,8 +1,8 @@
-numpy
-pandas
-scikit-learn
-joblib
-matplotlib
-pynput
-pystray
-pillow
+numpy==2.2.6
+pandas==2.3.3
+scikit-learn==1.7.2
+joblib==1.6.0
+matplotlib==3.10.9
+pynput==1.8.2
+pystray==0.19.5
+pillow==12.3.0
